@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ICFNA — Grabador de Prédicas</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand">
+        <img
+          src="../icons/icon-48.png"
+          alt="ICFNA"
+          width="32"
+          height="32"
+          class="brand-icon"
+        />
+        <div>
+          <h1 class="brand-title">ICFNA Audio</h1>
+          <p class="brand-sub">Prédicas → Cloudflare R2 &amp; RSS</p>
+        </div>
+      </div>
+      <span id="meet-badge" class="pill pill-muted">Sin Meet</span>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button
+        type="button"
+        class="tab active"
+        data-tab="record"
+        role="tab"
+        aria-selected="true"
+      >
+        Grabar
+      </button>
+      <button
+        type="button"
+        class="tab"
+        data-tab="episodes"
+        role="tab"
+        aria-selected="false"
+      >
+        Episodios
+      </button>
+      <button
+        type="button"
+        class="tab"
+        data-tab="settings"
+        role="tab"
+        aria-selected="false"
+      >
+        Config R2
+      </button>
+    </nav>
+
+    <main class="content">
+      <div id="status-banner" class="banner hidden" role="status"></div>
+
+      <!-- TAB 1: GRABAR -->
+      <section id="tab-record" class="tab-panel">
+        <div id="recovery-card" class="card card-warning hidden">
+          <p class="card-title">Grabación interrumpida detectada</p>
+          <p class="muted">
+            Hay audio guardado en respaldo local (posible cierre o apagón).
+          </p>
+          <div class="row-actions">
+            <button type="button" id="btn-recover" class="btn btn-amber">
+              Recuperar a MP3
+            </button>
+            <button type="button" id="btn-discard-chunks" class="btn btn-ghost">
+              Descartar
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="section-label">Fuente de audio</p>
+          <div class="mode-grid">
+            <label class="mode-option">
+              <input
+                type="radio"
+                name="captureMode"
+                value="mic_only"
+                checked
+              />
+              <span>
+                <strong>Solo Micrófono / Consola</strong>
+                <small>Ideal para templo (Dom / Mié)</small>
+              </span>
+            </label>
+            <label class="mode-option">
+              <input
+                type="radio"
+                name="captureMode"
+                value="mic_and_meet"
+              />
+              <span>
+                <strong>Micrófono + Audio de Meet</strong>
+                <small>Ideal para servicios online</small>
+              </span>
+            </label>
+          </div>
+
+          <div class="meter-box">
+            <div class="meter-top">
+              <span id="recording-indicator" class="indicator-idle">Listo para grabar</span>
+              <span id="timer-display" class="timer">00:00:00</span>
+            </div>
+            <div class="meter-track" aria-hidden="true">
+              <div id="level-bar" class="meter-fill"></div>
+            </div>
+          </div>
+
+          <div class="toggles">
+            <label class="checkbox-row">
+              <input type="checkbox" id="chk-auto-stop" checked />
+              <span>Detener automáticamente al cerrar Google Meet</span>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="chk-auto-upload" checked />
+              <span>Subir a R2 y actualizar podcast.xml al detener</span>
+            </label>
+          </div>
+
+          <div class="record-actions">
+            <button type="button" id="btn-start" class="btn btn-primary btn-lg">
+              Iniciar grabación de audio
+            </button>
+            <button
+              type="button"
+              id="btn-stop"
+              class="btn btn-danger btn-lg hidden"
+            >
+              Detener y convertir a MP3
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="section-label">Datos del servicio (opcionales — se llenan solos)</p>
+          <div class="field">
+            <label for="input-title">Título (automático si lo dejas vacío)</label>
+            <input
+              id="input-title"
+              type="text"
+              placeholder="Ej. Servicio Especial Familiar — 24 nov. 2026"
+            />
+          </div>
+          <div class="field">
+            <label for="input-preacher">Predicador (opcional)</label>
+            <input
+              id="input-preacher"
+              type="text"
+              list="preachers-list"
+              placeholder="Ej. Pastor Yoel Inciarte"
+            />
+            <datalist id="preachers-list">
+              <option value="Pastor Yoel Inciarte"></option>
+              <option value="Pastora Sofía Rodríguez de Inciarte"></option>
+              <option value="Pastor José Inciarte"></option>
+              <option value="Profeta Yoel Inciarte"></option>
+            </datalist>
+          </div>
+          <div class="field">
+            <label for="input-scripture">Pasaje bíblico (opcional)</label>
+            <input
+              id="input-scripture"
+              type="text"
+              placeholder="Ej. Lucas 4:18-19"
+            />
+          </div>
+          <div class="field">
+            <label for="input-description">Descripción breve (opcional)</label>
+            <textarea
+              id="input-description"
+              rows="2"
+              placeholder="Resumen corto para YouTube, Spotify y la congregación..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div id="ready-mp3-card" class="card card-accent hidden">
+          <p class="section-label">Audio MP3 listo</p>
+          <p id="ready-mp3-meta" class="muted"></p>
+          <audio id="ready-audio-player" controls class="audio-player"></audio>
+          <div class="row-actions">
+            <button type="button" id="btn-publish-ready" class="btn btn-primary">
+              Publicar en R2 + RSS
+            </button>
+            <button type="button" id="btn-download-ready" class="btn btn-secondary">
+              Descargar MP3
+            </button>
+            <button type="button" id="btn-discard-ready" class="btn btn-ghost">
+              Limpiar
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="section-label">O subir un MP3 ya grabado (OBS / teléfono)</p>
+          <input
+            type="file"
+            id="file-mp3-input"
+            accept="audio/mpeg,.mp3"
+            class="file-input"
+          />
+          <button
+            type="button"
+            id="btn-upload-file"
+            class="btn btn-secondary btn-full"
+          >
+            Subir MP3 seleccionado a R2 + podcast.xml
+          </button>
+        </div>
+      </section>
+
+      <!-- TAB 2: EPISODIOS -->
+      <section id="tab-episodes" class="tab-panel hidden">
+        <div class="card card-navy">
+          <p class="section-label-gold">Enlace RSS oficial (YouTube / Spotify / iVoox)</p>
+          <p id="rss-url-display" class="rss-url"></p>
+          <div class="row-actions">
+            <button type="button" id="btn-copy-rss" class="btn btn-amber">
+              Copiar enlace podcast.xml
+            </button>
+            <button type="button" id="btn-refresh-episodes" class="btn btn-outline-light">
+              Actualizar
+            </button>
+          </div>
+        </div>
+
+        <div id="episodes-list" class="episodes-list"></div>
+      </section>
+
+      <!-- TAB 3: CONFIG R2 -->
+      <section id="tab-settings" class="tab-panel hidden">
+        <div class="card">
+          <p class="section-label">Credenciales de Cloudflare R2 (Locales)</p>
+          <p class="muted">
+            Se guardan únicamente en este navegador. Crea un API Token de R2 con
+            permiso <strong>Object Read &amp; Write</strong> solo para el bucket
+            <code>icfna-predicas</code>.
+          </p>
+
+          <div class="field">
+            <label for="cfg-account-id">Cloudflare Account ID *</label>
+            <input
+              id="cfg-account-id"
+              type="text"
+              placeholder="Tu Cloudflare Account ID (32 caracteres)"
+            />
+          </div>
+          <div class="field">
+            <label for="cfg-access-key">R2 Access Key ID *</label>
+            <input id="cfg-access-key" type="text" placeholder="Access Key ID" />
+          </div>
+          <div class="field">
+            <label for="cfg-secret-key">R2 Secret Access Key *</label>
+            <input
+              id="cfg-secret-key"
+              type="password"
+              placeholder="Secret Access Key"
+            />
+          </div>
+          <div class="field">
+            <label for="cfg-bucket">Bucket Name *</label>
+            <input id="cfg-bucket" type="text" value="icfna-predicas" />
+          </div>
+          <div class="field">
+            <label for="cfg-public-url">Public Development URL (r2.dev) *</label>
+            <input
+              id="cfg-public-url"
+              type="url"
+              value="https://pub-b289a1bcfd614dd4a3877ba3e1c0a41c.r2.dev"
+            />
+          </div>
+
+          <div class="stack-actions">
+            <button type="button" id="btn-save-config" class="btn btn-primary btn-full">
+              Guardar configuración
+            </button>
+            <button type="button" id="btn-test-r2" class="btn btn-secondary btn-full">
+              Probar conexión con R2
+            </button>
+            <button type="button" id="btn-init-r2" class="btn btn-amber btn-full">
+              Subir portada (cover.jpg) e inicializar podcast.xml
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Autorizar Micrófono — ICFNA Audio</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #071931;
+        color: #132238;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 440px;
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 28px;
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        border-top: 5px solid #f78e1e;
+      }
+      img {
+        width: 56px;
+        height: 56px;
+        margin-bottom: 12px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        color: #0b2545;
+      }
+      p {
+        margin: 0 0 18px;
+        font-size: 14px;
+        color: #5a6b82;
+        line-height: 1.5;
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        background: #00469b;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        padding: 12px 20px;
+        cursor: pointer;
+        width: 100%;
+      }
+      button:hover {
+        background: #0b2545;
+      }
+      .status {
+        margin-top: 14px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .ok {
+        color: #065f46;
+      }
+      .err {
+        color: #991b1b;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <img src="../icons/icon-128.png" alt="ICFNA" />
+      <h1>Autorizar micrófono (solo una vez)</h1>
+      <p>
+        Chrome requiere aprobar el micrófono desde una pestaña normal. Una vez
+        que hagas clic en <strong>Permitir</strong>, el panel lateral podrá
+        grabar siempre sin volver a pedirlo.
+      </p>
+      <button type="button" id="btn-request-mic">
+        Permitir acceso al micrófono
+      </button>
+      <div id="mic-status" class="status"></div>
+    </main>
+    <script type="module" src="mic.js"></script>
+  </body>
+</html>

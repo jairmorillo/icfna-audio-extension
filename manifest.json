@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "ICFNA — Grabador y Publicador de Prédicas",
+  "short_name": "ICFNA Audio",
+  "version": "1.0.0",
+  "description": "Graba el audio de los servicios en Google Meet, lo convierte a MP3 y actualiza automáticamente el feed podcast.xml en Cloudflare R2.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "ICFNA — Grabador de Prédicas",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "permissions": [
+    "sidePanel",
+    "offscreen",
+    "tabCapture",
+    "tabs",
+    "storage",
+    "downloads",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "https://*.r2.cloudflarestorage.com/*",
+    "https://*.r2.dev/*"
+  ]
+}
