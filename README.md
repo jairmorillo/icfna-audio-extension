@@ -52,4 +52,5 @@ Tu enlace oficial del feed quedará activo 24/7 en:
 2. Haz clic en el ícono de **ICFNA Audio** para abrir el panel lateral.
 3. Elige **Solo Micrófono / Consola** (servicios presenciales del domingo/miércoles) o **Micrófono + Audio de Meet** (servicios online).
 4. Escribe el **Título** y **Predicador** y presiona **Iniciar grabación de audio**.
-5. Al presionar **Detener y convertir a MP3** (o al cerrar la pestaña de Meet si dejaste activa la opción automática), la extensión codifica el MP3, lo sube a R2 y actualiza `podcast.xml` automáticamente.
+5. Al presionar **Detener y finalizar MP3** (o al cerrar la pestaña de Meet si dejaste activa la opción automática), el audio (que ya se fue codificando a MP3 en tiempo real con respaldo anti-apagones cada 5 segundos) se cierra en menos de 1 segundo, se sube a R2 y actualiza `podcast.xml` automáticamente.
+6. *(Opcional)* Puedes activar **Auto-guardar respaldo en Descargas cada X min** para que la extensión guarde copias físicas por partes en `Descargas/ICFNA-Backups/` durante servicios largos.

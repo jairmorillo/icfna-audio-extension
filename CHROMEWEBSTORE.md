@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — ICFNA — Grabador y Publicador de Prédicas
 
-> Last Updated: 2026-11-22
+> Last Updated: 2026-11-25
 
 ## Store Listing
 
@@ -58,7 +58,7 @@ Spanish (Latin America)
 | `tabCapture` | permissions | Captures the audio stream of the active Google Meet tab when the operator explicitly selects the "Micrófono + Audio de Meet" recording mode for online services. |
 | `tabs` | permissions | Detects when a Google Meet tab (`https://meet.google.com/*`) is opened so the badge indicates readiness, and detects when that Meet tab closes to trigger the optional auto-stop recording feature. |
 | `storage` | permissions | Stores the operator's local Cloudflare R2 bucket configuration (in `chrome.storage.local`) and temporary recording session state (in `chrome.storage.session`). |
-| `downloads` | permissions | Allows the operator to save a local `.mp3` backup copy of any recorded sermon to their computer via the "Descargar MP3" button. |
+| `downloads` | permissions | Allows the operator to save a local `.mp3` backup copy of any recorded sermon (manually or via optional automatic periodic backups during long services). |
 | `notifications` | permissions | Notifies the operator when a recording finishes converting to MP3 or finishes uploading to Cloudflare R2 and updating `podcast.xml`. |
 | `https://meet.google.com/*` | host_permissions | Restricts Google Meet detection and tab audio capture strictly to Google Meet meetings. |
 | `https://*.r2.cloudflarestorage.com/*` | host_permissions | Allows direct signed uploads of MP3 audio files, cover artwork, `catalog.json`, and `podcast.xml` to the user's own Cloudflare R2 bucket without third-party servers. |
@@ -113,6 +113,7 @@ icfnuevoamanecer@gmail.com
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
 | 1.0.0 | 2026-11-22 | Versión inicial Manifest V3: grabación solo audio en Meet, respaldo local anti-apagones, codificación MP3, subida directa SigV4 a Cloudflare R2 y generación de `podcast.xml`. | Draft |
+| 1.1.0 | 2026-11-25 | Codificación MP3 en tiempo real con respaldo continuo anti-apagones, recuperación instantánea sin errores de decodificación, descarga directa de respaldos anteriores y respaldo automático opcional por partes en Descargas. | Draft |
 
 ## Packaging Command (Exclude Dev Docs Before Upload)
 When creating the `.zip` for Chrome Web Store, include ONLY:

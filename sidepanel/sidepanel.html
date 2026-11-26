@@ -60,13 +60,16 @@
       <!-- TAB 1: GRABAR -->
       <section id="tab-record" class="tab-panel">
         <div id="recovery-card" class="card card-warning hidden">
-          <p class="card-title">Grabación interrumpida detectada</p>
-          <p class="muted">
+          <p id="recovery-title" class="card-title">Grabación interrumpida detectada</p>
+          <p id="recovery-detail" class="muted">
             Hay audio guardado en respaldo local (posible cierre o apagón).
           </p>
           <div class="row-actions">
             <button type="button" id="btn-recover" class="btn btn-amber">
-              Recuperar a MP3
+              Recuperar MP3 al instante
+            </button>
+            <button type="button" id="btn-download-raw" class="btn btn-secondary">
+              Descargar respaldo
             </button>
             <button type="button" id="btn-discard-chunks" class="btn btn-ghost">
               Descartar
@@ -110,6 +113,7 @@
             <div class="meter-track" aria-hidden="true">
               <div id="level-bar" class="meter-fill"></div>
             </div>
+            <p id="backup-status" class="backup-status hidden"></p>
           </div>
 
           <div class="toggles">
@@ -121,6 +125,24 @@
               <input type="checkbox" id="chk-auto-upload" checked />
               <span>Subir a R2 y actualizar podcast.xml al detener</span>
             </label>
+            <div class="backup-toggle-row">
+              <label class="checkbox-row">
+                <input type="checkbox" id="chk-auto-backup" />
+                <span>Auto-guardar respaldo en Descargas cada</span>
+              </label>
+              <select
+                id="select-backup-minutes"
+                class="inline-select"
+                aria-label="Intervalo de respaldo automático en minutos"
+              >
+                <option value="1">1 min</option>
+                <option value="5">5 min</option>
+                <option value="10">10 min</option>
+                <option value="15" selected>15 min</option>
+                <option value="20">20 min</option>
+                <option value="30">30 min</option>
+              </select>
+            </div>
           </div>
 
           <div class="record-actions">
@@ -132,7 +154,7 @@
               id="btn-stop"
               class="btn btn-danger btn-lg hidden"
             >
-              Detener y convertir a MP3
+              Detener y finalizar MP3
             </button>
           </div>
         </div>

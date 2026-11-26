@@ -1,8 +1,13 @@
 import {
+  assembleMp3FromChunks,
+  clearActiveSessionMeta,
   clearAudioChunks,
   clearReadyMp3,
+  getActiveSessionMeta,
   getAllAudioChunks,
   getReadyMp3,
+  inspectPendingChunks,
+  saveReadyMp3,
 } from "../shared/idb-store.js";
 import {
   initializePodcastBucket,
@@ -22,13 +27,19 @@ const elements = {
     settings: document.getElementById("tab-settings"),
   },
   recoveryCard: document.getElementById("recovery-card"),
+  recoveryTitle: document.getElementById("recovery-title"),
+  recoveryDetail: document.getElementById("recovery-detail"),
   btnRecover: document.getElementById("btn-recover"),
+  btnDownloadRaw: document.getElementById("btn-download-raw"),
   btnDiscardChunks: document.getElementById("btn-discard-chunks"),
   recordingIndicator: document.getElementById("recording-indicator"),
   timerDisplay: document.getElementById("timer-display"),
   levelBar: document.getElementById("level-bar"),
+  backupStatus: document.getElementById("backup-status"),
   chkAutoStop: document.getElementById("chk-auto-stop"),
   chkAutoUpload: document.getElementById("chk-auto-upload"),
+  chkAutoBackup: document.getElementById("chk-auto-backup"),
+  selectBackupMinutes: document.getElementById("select-backup-minutes"),
   btnStart: document.getElementById("btn-start"),
   btnStop: document.getElementById("btn-stop"),
   inputTitle: document.getElementById("input-title"),
@@ -59,6 +70,8 @@ const elements = {
 
 let currentReadyObjectUrl = null;
 let timerIntervalId = null;
+let pendingInspection = null;
+let activeSessionState = null;
 
 function formatElapsed(totalSeconds) {
   const safe = Math.max(0, Math.floor(totalSeconds));
@@ -113,6 +126,16 @@ function readMetadataFromForm() {
   };
 }
 
+function applySavedMetadataToForm(savedMeta) {
+  if (!savedMeta) return;
+  if (savedMeta.title) elements.inputTitle.value = savedMeta.title;
+  if (savedMeta.preacher && savedMeta.preacher !== PODCAST_DEFAULTS.author) {
+    elements.inputPreacher.value = savedMeta.preacher;
+  }
+  if (savedMeta.scripture) elements.inputScripture.value = savedMeta.scripture;
+  if (savedMeta.description) elements.inputDescription.value = savedMeta.description;
+}
+
 async function getStoredR2Config() {
   const { r2Config } = await chrome.storage.local.get("r2Config");
   return {
@@ -136,19 +159,64 @@ function readR2ConfigFromForm() {
   };
 }
 
+async function loadBackupPrefs() {
+  const { backupPrefs } = await chrome.storage.local.get("backupPrefs");
+  const enabled = Boolean(backupPrefs?.enabled);
+  const minutes = String(backupPrefs?.minutes || 15);
+  elements.chkAutoBackup.checked = enabled;
+  elements.selectBackupMinutes.value = minutes;
+  elements.selectBackupMinutes.disabled = !enabled;
+}
+
+async function saveBackupPrefs() {
+  const enabled = elements.chkAutoBackup.checked;
+  const minutes = Number(elements.selectBackupMinutes.value) || 15;
+  elements.selectBackupMinutes.disabled = !enabled;
+  await chrome.storage.local.set({
+    backupPrefs: { enabled, minutes },
+  });
+}
+
+function renderBackupStatus(state, partsOverride = null) {
+  if (state?.recordingState !== "recording") {
+    elements.backupStatus.classList.add("hidden");
+    elements.backupStatus.textContent = "";
+    return;
+  }
+
+  const parts =
+    partsOverride !== null ? partsOverride : Number(state.backupPartsSaved) || 0;
+
+  if (state.autoBackupEnabled) {
+    const partsText =
+      parts === 1 ? "1 parte guardada" : `${parts} partes guardadas`;
+    elements.backupStatus.textContent = `MP3 en vivo (cada 5s) · Auto-descarga cada ${state.autoBackupMinutes} min (${partsText})`;
+  } else {
+    elements.backupStatus.textContent =
+      "Respaldo MP3 en vivo activo (guardando bloques cada 5s)";
+  }
+  elements.backupStatus.classList.remove("hidden");
+}
+
 function updateRecordingUi(state, meetTab) {
+  activeSessionState = state;
   const isRecording = state.recordingState === "recording";
   const isBusy =
     state.recordingState === "starting" || state.recordingState === "stopping";
 
+  elements.chkAutoBackup.disabled = isRecording || isBusy;
+  elements.selectBackupMinutes.disabled =
+    isRecording || isBusy || !elements.chkAutoBackup.checked;
+
   if (isRecording) {
     elements.meetBadge.textContent = "GRABANDO";
     elements.meetBadge.className = "pill pill-rec";
-    elements.recordingIndicator.textContent = "Grabando solo audio...";
+    elements.recordingIndicator.textContent = "Grabando MP3 en vivo...";
     elements.recordingIndicator.className = "indicator-rec";
     elements.btnStart.classList.add("hidden");
     elements.btnStop.classList.remove("hidden");
     elements.btnStop.disabled = false;
+    renderBackupStatus(state);
 
     if (timerIntervalId) clearInterval(timerIntervalId);
     timerIntervalId = setInterval(() => {
@@ -169,9 +237,10 @@ function updateRecordingUi(state, meetTab) {
   elements.btnStop.classList.add("hidden");
   elements.btnStart.disabled = isBusy;
   elements.recordingIndicator.textContent = isBusy
-    ? "Procesando audio..."
+    ? "Finalizando MP3..."
     : "Listo para grabar";
   elements.recordingIndicator.className = "indicator-idle";
+  renderBackupStatus(state);
 
   if (meetTab) {
     elements.meetBadge.textContent = "Meet activo";
@@ -207,12 +276,40 @@ async function refreshRecoveryCard(recordingState) {
     elements.recoveryCard.classList.add("hidden");
     return;
   }
-  const chunks = await getAllAudioChunks();
-  if (chunks.length > 0) {
-    elements.recoveryCard.classList.remove("hidden");
-  } else {
+
+  const inspection = await inspectPendingChunks();
+  pendingInspection = inspection;
+
+  if (!inspection.hasPending) {
     elements.recoveryCard.classList.add("hidden");
+    return;
   }
+
+  if (inspection.format === "mp3") {
+    elements.recoveryTitle.textContent = "Grabación MP3 interrumpida detectada";
+    elements.recoveryDetail.textContent = `Respaldo listo: ~${formatElapsed(
+      inspection.durationSeconds
+    )} · ${formatMegabytes(inspection.totalBytes)} (${
+      inspection.count
+    } bloques). Se recupera al instante sin decodificar.`;
+    elements.btnRecover.textContent = "Recuperar MP3 al instante";
+    elements.btnRecover.className = "btn btn-amber";
+    elements.btnDownloadRaw.textContent = "Descargar MP3 directo";
+    elements.btnDownloadRaw.className = "btn btn-secondary";
+  } else {
+    elements.recoveryTitle.textContent = "Grabación anterior (WebM) detectada";
+    elements.recoveryDetail.textContent = `${formatMegabytes(
+      inspection.totalBytes
+    )} (${
+      inspection.count
+    } fragmentos). Descarga el .webm crudo para rescatarla sin errores y luego conviértela a MP3.`;
+    elements.btnDownloadRaw.textContent = "Descargar .webm crudo";
+    elements.btnDownloadRaw.className = "btn btn-amber";
+    elements.btnRecover.textContent = "Intentar convertir a MP3";
+    elements.btnRecover.className = "btn btn-secondary";
+  }
+
+  elements.recoveryCard.classList.remove("hidden");
 }
 
 async function checkMicPermissionGranted() {
@@ -355,6 +452,86 @@ function getAudioFileDuration(file) {
   });
 }
 
+async function handleInstantMp3Recovery() {
+  const chunks = await getAllAudioChunks();
+  const savedSession = await getActiveSessionMeta();
+  const { mp3Blob, durationSeconds } = assembleMp3FromChunks(chunks);
+
+  if (savedSession?.metadata) {
+    applySavedMetadataToForm(savedSession.metadata);
+  }
+
+  const metadata = readMetadataFromForm();
+  await saveReadyMp3({
+    blob: mp3Blob,
+    sizeBytes: mp3Blob.size,
+    durationSeconds,
+    createdAt: savedSession?.startedAt || new Date().toISOString(),
+    metadata,
+  });
+  await clearAudioChunks();
+  await clearActiveSessionMeta();
+
+  showBanner(
+    `¡MP3 recuperado al instante! (${formatElapsed(
+      durationSeconds
+    )} · ${formatMegabytes(mp3Blob.size)}). Ya puedes escucharlo, descargarlo o subirlo a R2.`,
+    "success"
+  );
+  await syncState();
+}
+
+async function handleDownloadRawBackup() {
+  const chunks = await getAllAudioChunks();
+  if (!chunks.length) {
+    showBanner("No hay fragmentos guardados para descargar.", "error");
+    return;
+  }
+
+  const savedSession = await getActiveSessionMeta();
+  const titleBase =
+    savedSession?.metadata?.title ||
+    elements.inputTitle.value.trim() ||
+    "rescate-predica-icfna";
+  const dateIso = savedSession?.startedAt || new Date().toISOString();
+  const slug = slugifyFilename(titleBase, dateIso);
+
+  let blob;
+  let filename;
+
+  if (pendingInspection?.format === "mp3") {
+    const { mp3Blob } = assembleMp3FromChunks(chunks);
+    blob = mp3Blob;
+    filename = `${slug}-recuperado.mp3`;
+  } else {
+    blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
+    filename = `${slug}-rescate.webm`;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const res = await chrome.runtime.sendMessage({
+    type: "DOWNLOAD_URL",
+    url,
+    filename,
+    saveAs: true,
+  });
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+  if (!res?.ok) {
+    showBanner(res?.error || "No se pudo descargar el respaldo.", "error");
+    return;
+  }
+
+  if (pendingInspection?.format === "legacy_webm") {
+    showBanner(
+      "Respaldo .webm descargado. Conviértelo a MP3 (con FFmpeg o VLC) y súbelo en 'O subir un MP3 ya grabado' más abajo.",
+      "success"
+    );
+  } else {
+    showBanner("Copia MP3 descargada exitosamente.", "success");
+  }
+}
+
 function bindEvents() {
   for (const tabBtn of elements.tabs) {
     tabBtn.addEventListener("click", async () => {
@@ -373,8 +550,19 @@ function bindEvents() {
     });
   }
 
+  elements.chkAutoBackup.addEventListener("change", saveBackupPrefs);
+  elements.selectBackupMinutes.addEventListener("change", saveBackupPrefs);
+
   elements.btnStart.addEventListener("click", async () => {
     clearBanner();
+
+    if (pendingInspection?.hasPending) {
+      const confirmed = window.confirm(
+        "Hay una grabación interrumpida pendiente de recuperar. Si inicias una nueva grabación se borrará ese respaldo. ¿Deseas continuar?"
+      );
+      if (!confirmed) return;
+    }
+
     elements.btnStart.disabled = true;
     try {
       const hasMicPermission = await checkMicPermissionGranted();
@@ -394,6 +582,8 @@ function bindEvents() {
           captureMode: getSelectedCaptureMode(),
           autoStopOnMeetClose: elements.chkAutoStop.checked,
           autoUploadOnStop: elements.chkAutoUpload.checked,
+          autoBackupEnabled: elements.chkAutoBackup.checked,
+          autoBackupMinutes: Number(elements.selectBackupMinutes.value) || 15,
           metadata: readMetadataFromForm(),
         },
       });
@@ -415,7 +605,13 @@ function bindEvents() {
         throw new Error(result?.error || "No se pudo iniciar la grabación.");
       }
 
-      showBanner("Grabación iniciada con respaldo local anti-apagones.", "success");
+      const backupNote = elements.chkAutoBackup.checked
+        ? ` + auto-descarga cada ${elements.selectBackupMinutes.value} min`
+        : "";
+      showBanner(
+        `Grabación MP3 en vivo iniciada (anti-apagones cada 5s${backupNote}).`,
+        "success"
+      );
       await syncState();
     } catch (err) {
       showBanner(err instanceof Error ? err.message : String(err), "error");
@@ -425,7 +621,7 @@ function bindEvents() {
 
   elements.btnStop.addEventListener("click", async () => {
     elements.btnStop.disabled = true;
-    showBanner("Deteniendo grabación y generando MP3...", "info");
+    showBanner("Finalizando grabación MP3...", "info");
     const result = await chrome.runtime.sendMessage({
       type: "STOP_RECORDING",
       metadata: readMetadataFromForm(),
@@ -452,21 +648,54 @@ function bindEvents() {
   });
 
   elements.btnRecover.addEventListener("click", async () => {
-    showBanner("Recuperando fragmentos y codificando a MP3...", "info");
-    const result = await chrome.runtime.sendMessage({
-      type: "RECOVER_CHUNKS",
-      metadata: readMetadataFromForm(),
-    });
-    if (!result?.ok) {
-      showBanner(result?.error || "No se pudo recuperar el audio.", "error");
-      return;
+    elements.btnRecover.disabled = true;
+    try {
+      if (pendingInspection?.format === "mp3") {
+        await handleInstantMp3Recovery();
+        return;
+      }
+
+      showBanner("Intentando convertir respaldo WebM antiguo a MP3...", "info");
+      const result = await chrome.runtime.sendMessage({
+        type: "RECOVER_CHUNKS",
+        metadata: readMetadataFromForm(),
+      });
+      if (!result?.ok) {
+        showBanner(
+          `${result?.error || "No se pudo decodificar el WebM."} Usa "Descargar .webm crudo" para rescatarlo sin pérdida.`,
+          "error"
+        );
+        return;
+      }
+      showBanner("Audio recuperado a MP3 exitosamente.", "success");
+      await syncState();
+    } catch (err) {
+      showBanner(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      elements.btnRecover.disabled = false;
     }
-    showBanner("Audio recuperado a MP3 exitosamente.", "success");
-    await syncState();
+  });
+
+  elements.btnDownloadRaw.addEventListener("click", async () => {
+    elements.btnDownloadRaw.disabled = true;
+    try {
+      await handleDownloadRawBackup();
+    } catch (err) {
+      showBanner(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      elements.btnDownloadRaw.disabled = false;
+    }
   });
 
   elements.btnDiscardChunks.addEventListener("click", async () => {
+    const confirmed = window.confirm(
+      "¿Seguro que deseas descartar esta grabación guardada en respaldo local? Esta acción no se puede deshacer."
+    );
+    if (!confirmed) return;
+
     await clearAudioChunks();
+    await clearActiveSessionMeta();
+    pendingInspection = null;
     elements.recoveryCard.classList.add("hidden");
     showBanner("Fragmentos temporales descartados.", "info");
   });
@@ -516,6 +745,7 @@ function bindEvents() {
       type: "DOWNLOAD_URL",
       url: currentReadyObjectUrl,
       filename: `${slug}.mp3`,
+      saveAs: true,
     });
   });
 
@@ -617,6 +847,19 @@ function bindEvents() {
     if (message?.type === "AUDIO_LEVEL") {
       elements.levelBar.style.width = `${message.level}%`;
       elements.timerDisplay.textContent = formatElapsed(message.elapsedSeconds);
+      if (activeSessionState && typeof message.backupPartsSaved === "number") {
+        renderBackupStatus(activeSessionState, message.backupPartsSaved);
+      }
+    }
+    if (message?.type === "BACKUP_PART_SAVED") {
+      if (activeSessionState) {
+        activeSessionState.backupPartsSaved = message.partNumber;
+        renderBackupStatus(activeSessionState, message.partNumber);
+      }
+      showBanner(
+        `Respaldo automático #${message.partNumber} guardado en Descargas.`,
+        "info"
+      );
     }
     if (message?.type === "PROCESSING_PROGRESS") {
       showBanner(message.detail || "Procesando...", "info");
@@ -634,6 +877,7 @@ function bindEvents() {
 async function init() {
   elements.inputTitle.value = defaultSermonTitle();
   await loadConfigForm();
+  await loadBackupPrefs();
   bindEvents();
   await syncState();
 }
